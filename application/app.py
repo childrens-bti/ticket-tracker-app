@@ -1,10 +1,45 @@
 import streamlit as st
+import time
+import jwt
 import requests
-import os
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
 
-REPO = "childrens-bti/internal-ticket-tracker"  # Replace with your target repo
+REPO = "childrens-bti/internal-ticket-tracker"
 
-# Form UI
+# Load secrets
+app_id = st.secrets["GITHUB_APP_ID"]
+installation_id = st.secrets["GITHUB_INSTALLATION_ID"]
+private_key_str = st.secrets["GITHUB_PRIVATE_KEY"]
+
+# Load the private key
+private_key = serialization.load_pem_private_key(
+    private_key_str.encode(),
+    password=None,
+    backend=default_backend()
+)
+
+# Create JWT
+def create_jwt(app_id, private_key):
+    now = int(time.time())
+    payload = {
+        "iat": now - 60,
+        "exp": now + (10 * 60),
+        "iss": app_id
+    }
+    return jwt.encode(payload, private_key, algorithm="RS256")
+
+# Get installation access token
+def get_installation_token(jwt_token, installation_id):
+    headers = {
+        "Authorization": f"Bearer {jwt_token}",
+        "Accept": "application/vnd.github+json"
+    }
+    url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
+    response = requests.post(url, headers=headers)
+    return response.json().get("token")
+
+# UI
 st.title("Harmonization Request Form")
 
 st.markdown("""
@@ -30,18 +65,18 @@ workflow_options = [
     "AlleleCouNT (tumor allele counts for germline variant calls)",
     "Custom Workflow (specify below)"
 ]
-
 selected_workflows = [w for w in workflow_options if st.checkbox(w)]
 
 additional_info = st.text_area("Additional Information")
 
-# Submit button
 if st.button("Submit Harmonization Request"):
-    if not GITHUB_TOKEN:
-        st.error("GitHub token not found. Please set GITHUB_TOKEN as an environment variable.")
-    elif not (cohort_name and billing_group and selected_workflows):
+    if not (cohort_name and billing_group and selected_workflows):
         st.warning("Please fill out all required fields.")
     else:
+        # Authenticate with GitHub App
+        jwt_token = create_jwt(app_id, private_key)
+        access_token = get_installation_token(jwt_token, installation_id)
+
         issue_title = f"[Harmonization]: {cohort_name}"
         issue_body = f"""## Harmonization Request
 
@@ -57,7 +92,7 @@ if st.button("Submit Harmonization Request"):
 """
 
         headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
+            "Authorization": f"token {access_token}",
             "Accept": "application/vnd.github+json"
         }
         data = {
@@ -73,11 +108,9 @@ if st.button("Submit Harmonization Request"):
         )
 
         if response.status_code == 201:
+            issue_url = response.json()["html_url"]
             st.success("✅ GitHub issue created successfully!")
-            issue_url = response.json().get("html_url", "")
-            if issue_url:
-                st.markdown(f"[View issue on GitHub]({issue_url})")
+            st.markdown(f"[View on GitHub]({issue_url})")
         else:
             st.error(f"❌ Failed to create issue: {response.status_code}")
             st.json(response.json())
-
