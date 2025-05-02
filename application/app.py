@@ -1,11 +1,8 @@
 import streamlit as st
 import requests
 import os
-from dotenv import load_dotenv
 import os
 
-load_dotenv()
-GITHUB_TOKEN = os.getenv("GITHUB_PAT_TOKEN")
 REPO = "childrens-bti/internal-ticket-tracker"  # Replace with your target repo
 
 # Form UI
