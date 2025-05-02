@@ -7,17 +7,22 @@ from cryptography.hazmat.backends import default_backend
 
 REPO = "childrens-bti/internal-ticket-tracker"
 
-# Load secrets
+# Load secrets from Streamlit Cloud
 app_id = st.secrets["GITHUB_APP_ID"]
 installation_id = st.secrets["GITHUB_INSTALLATION_ID"]
 private_key_str = st.secrets["GITHUB_PRIVATE_KEY"]
 
 # Load the private key
-private_key = serialization.load_pem_private_key(
-    private_key_str.encode(),
-    password=None,
-    backend=default_backend()
-)
+try:
+    private_key = serialization.load_pem_private_key(
+        private_key_str.encode(),
+        password=None,
+        backend=default_backend()
+    )
+    st.success("✅ Private key loaded successfully")
+except Exception as e:
+    st.error(f"❌ Failed to load private key: {e}")
+    st.stop()
 
 # Create JWT
 def create_jwt(app_id, private_key):
@@ -27,7 +32,8 @@ def create_jwt(app_id, private_key):
         "exp": now + (10 * 60),
         "iss": app_id
     }
-    return jwt.encode(payload, private_key, algorithm="RS256")
+    jwt_token = jwt.encode(payload, private_key, algorithm="RS256")
+    return jwt_token
 
 # Get installation access token
 def get_installation_token(jwt_token, installation_id):
@@ -37,6 +43,8 @@ def get_installation_token(jwt_token, installation_id):
     }
     url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
     response = requests.post(url, headers=headers)
+    st.write("🔧 Installation Token Status:", response.status_code)
+    st.write("🔧 Token response JSON:", response.text)
     return response.json().get("token")
 
 # UI
@@ -69,14 +77,25 @@ selected_workflows = [w for w in workflow_options if st.checkbox(w)]
 
 additional_info = st.text_area("Additional Information")
 
+# Submit
 if st.button("Submit Harmonization Request"):
     if not (cohort_name and billing_group and selected_workflows):
         st.warning("Please fill out all required fields.")
     else:
-        # Authenticate with GitHub App
+        st.write("🔐 Creating JWT...")
         jwt_token = create_jwt(app_id, private_key)
-        access_token = get_installation_token(jwt_token, installation_id)
+        st.success("✅ JWT created")
 
+        st.write("🔑 Requesting installation access token...")
+        access_token = get_installation_token(jwt_token, installation_id)
+        if not access_token:
+            st.error("❌ Failed to retrieve GitHub installation access token.")
+            st.stop()
+
+        st.success("✅ Access token retrieved")
+        st.write("🔐 Access Token (first 10 chars):", access_token[:10], "...")
+
+        # Prepare issue
         issue_title = f"[Harmonization]: {cohort_name}"
         issue_body = f"""## Harmonization Request
 
@@ -101,11 +120,15 @@ if st.button("Submit Harmonization Request"):
             "labels": ["harmonization-request"]
         }
 
+        st.write("🚀 Sending issue to GitHub...")
         response = requests.post(
             f"https://api.github.com/repos/{REPO}/issues",
             headers=headers,
             json=data
         )
+
+        st.write("📬 GitHub Issue Response:", response.status_code)
+        st.write("📬 Response JSON:", response.text)
 
         if response.status_code == 201:
             issue_url = response.json()["html_url"]
