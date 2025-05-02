@@ -2,5 +2,4 @@ streamlit
 requests
 PyJWT
 cryptography
-dotenv
 

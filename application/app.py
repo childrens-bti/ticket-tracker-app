@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import os
-import os
 
 REPO = "childrens-bti/internal-ticket-tracker"  # Replace with your target repo
 
