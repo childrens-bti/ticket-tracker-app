@@ -41,15 +41,21 @@ def get_installation_token(jwt_token, installation_id):
     response = requests.post(url, headers=headers)
     return response.json().get("token")
 
-# Load issue template YAML
-def load_template(issue_type):
-    base_url = "https://raw.githubusercontent.com/childrens-bti/internal-ticket-tracker/main/.github/ISSUE_TEMPLATE/"
-    url = f"{base_url}{issue_type}.yml"
-    response = requests.get(url)
+# Load issue template YAML via GitHub API
+def load_template(issue_type, access_token):
+    path = f".github/ISSUE_TEMPLATE/{issue_type}.yml"
+    url = f"https://api.github.com/repos/{REPO}/contents/{path}"
+
+    headers = {
+        "Authorization": f"token {access_token}",
+        "Accept": "application/vnd.github.v3.raw"
+    }
+
+    response = requests.get(url, headers=headers)
     if response.status_code == 200:
         return yaml.safe_load(response.text)
     else:
-        st.error(f"❌ Failed to load template: {issue_type}")
+        st.error(f"❌ Failed to load template: {issue_type} ({response.status_code})")
         return None
 
 # Build form based on issue template
@@ -77,10 +83,7 @@ def render_form(template):
     return inputs
 
 # Submit GitHub issue
-def submit_issue(title, body, labels, project_ids):
-    jwt_token = create_jwt(app_id, private_key)
-    access_token = get_installation_token(jwt_token, installation_id)
-
+def submit_issue(title, body, labels, project_ids, access_token):
     headers = {
         "Authorization": f"token {access_token}",
         "Accept": "application/vnd.github+json"
@@ -102,10 +105,14 @@ def submit_issue(title, body, labels, project_ids):
     return response
 
 # Main UI
-st.title("BTI Internal Ticket Tracker")
+st.title("BTI Bioinformatics Ticket Form")
 issue_type = st.selectbox("Select Issue Type", ["analysis", "harmonization"])
 
-template = load_template(issue_type)
+# Authenticate
+jwt_token = create_jwt(app_id, private_key)
+access_token = get_installation_token(jwt_token, installation_id)
+
+template = load_template(issue_type, access_token)
 
 if template:
     inputs = render_form(template)
@@ -116,7 +123,7 @@ if template:
         labels = [issue_type + "-request"]
         project_ids = template.get("projects", [])
 
-        response = submit_issue(title, body, labels, project_ids)
+        response = submit_issue(title, body, labels, project_ids, access_token)
 
         if response.status_code == 201:
             issue_url = response.json().get("html_url", "")
