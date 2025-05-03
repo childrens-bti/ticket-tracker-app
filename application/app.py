@@ -88,6 +88,13 @@ def render_form(template):
             if block.get("validations", {}).get("required", False) and not selected:
                 st.warning(f"Please select at least one option for '{label}'")
             inputs[block.get("id", label)] = selected
+        elif block_type == "dropdown":
+             label = block.get("attributes", {}).get("label", "Choose an option")
+             options = block.get("attributes", {}).get("options", [])
+             default = block.get("attributes", {}).get("default", 0)
+             if options:
+        choice = st.selectbox(label, options, index=default if default < len(options) else 0)
+        inputs[block.get("id", label)] = choice
 
         else:
             st.info(f"ℹ️ Unsupported field type '{block_type}' will be skipped.")
