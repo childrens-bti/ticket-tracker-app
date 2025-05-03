@@ -1,28 +1,25 @@
 import streamlit as st
+import requests
+import yaml
 import time
 import jwt
-import requests
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 
+# GitHub repo details
 REPO = "childrens-bti/internal-ticket-tracker"
 
-# Load secrets from Streamlit Cloud
+# Secrets from Streamlit Cloud
 app_id = st.secrets["GITHUB_APP_ID"]
 installation_id = st.secrets["GITHUB_INSTALLATION_ID"]
 private_key_str = st.secrets["GITHUB_PRIVATE_KEY"]
 
-# Load the private key
-try:
-    private_key = serialization.load_pem_private_key(
-        private_key_str.encode(),
-        password=None,
-        backend=default_backend()
-    )
-    st.success("✅ Private key loaded successfully")
-except Exception as e:
-    st.error(f"❌ Failed to load private key: {e}")
-    st.stop()
+# Load private key
+private_key = serialization.load_pem_private_key(
+    private_key_str.encode(),
+    password=None,
+    backend=default_backend()
+)
 
 # Create JWT
 def create_jwt(app_id, private_key):
@@ -32,8 +29,7 @@ def create_jwt(app_id, private_key):
         "exp": now + (10 * 60),
         "iss": app_id
     }
-    jwt_token = jwt.encode(payload, private_key, algorithm="RS256")
-    return jwt_token
+    return jwt.encode(payload, private_key, algorithm="RS256")
 
 # Get installation access token
 def get_installation_token(jwt_token, installation_id):
@@ -43,97 +39,89 @@ def get_installation_token(jwt_token, installation_id):
     }
     url = f"https://api.github.com/app/installations/{installation_id}/access_tokens"
     response = requests.post(url, headers=headers)
-    st.write("🔧 Installation Token Status:", response.status_code)
-    st.write("🔧 Token response JSON:", response.text)
     return response.json().get("token")
 
-# UI
-st.title("Harmonization Request Form")
-
-st.markdown("""
-Use this form to submit a harmonization request for benchmarked and publicly available workflows.
-For downstream analysis, please use the Analysis Request form.
-""")
-
-cohort_name = st.text_input("Cohort Name")
-manifest = st.text_area("Manifest (can be pasted or referenced)")
-billing_group = st.text_input("Billing Group")
-
-# Workflow checkboxes
-st.markdown("### Select Harmonization Workflow(s)")
-workflow_options = [
-    "Kids First RNA-Seq workflow (alignment + expression + fusions + splicing)",
-    "Kids First WGS or WXS T/N workflow (alignment + SNV/InDel/CNV/SV variant calls + annotation)",
-    "Kids First WGS or WXS T only workflow (alignment + SNV/InDel/CNV/SV variant calls + annotation)",
-    "Kids First Germline Joint Genotyping workflow (specify family or other cohort + annotation)",
-    "Kids First Targeted Panel T/N workflow (alignment + SNV/InDel variant calls + annotation)",
-    "Kids First Targeted Panel T only workflow (alignment + SNV/InDel variant calls + annotation)",
-    "Pathogenicity Preprocessing (ClinVar, INTERVAR, AutoPVS1 annotation)",
-    "AutoGVP (Automated Germline Variant Pathogenicity)",
-    "AlleleCouNT (tumor allele counts for germline variant calls)",
-    "Custom Workflow (specify below)"
-]
-selected_workflows = [w for w in workflow_options if st.checkbox(w)]
-
-additional_info = st.text_area("Additional Information")
-
-# Submit
-if st.button("Submit Harmonization Request"):
-    if not (cohort_name and billing_group and selected_workflows):
-        st.warning("Please fill out all required fields.")
+# Load issue template YAML
+def load_template(issue_type):
+    base_url = "https://raw.githubusercontent.com/childrens-bti/internal-ticket-tracker/main/.github/ISSUE_TEMPLATE/"
+    url = f"{base_url}{issue_type}.yml"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return yaml.safe_load(response.text)
     else:
-        st.write("🔐 Creating JWT...")
-        jwt_token = create_jwt(app_id, private_key)
-        st.success("✅ JWT created")
+        st.error(f"❌ Failed to load template: {issue_type}")
+        return None
 
-        st.write("🔑 Requesting installation access token...")
-        access_token = get_installation_token(jwt_token, installation_id)
-        if not access_token:
-            st.error("❌ Failed to retrieve GitHub installation access token.")
-            st.stop()
+# Build form based on issue template
+def render_form(template):
+    inputs = {}
+    st.markdown(template["body"][0]["attributes"]["value"])
 
-        st.success("✅ Access token retrieved")
-        st.write("🔐 Access Token (first 10 chars):", access_token[:10], "...")
+    for block in template["body"]:
+        if block["type"] == "textarea":
+            label = block["attributes"]["label"]
+            required = block.get("validations", {}).get("required", False)
+            value = st.text_area(label, placeholder=block["attributes"].get("placeholder", ""))
+            if required and not value:
+                st.warning(f"'{label}' is required.")
+            inputs[block["id"]] = value
 
-        # Prepare issue
-        issue_title = f"[Harmonization]: {cohort_name}"
-        issue_body = f"""## Harmonization Request
+        elif block["type"] == "checkboxes":
+            label = block["attributes"]["label"]
+            options = block["attributes"].get("options", [])
+            selected = [opt["label"] for opt in options if st.checkbox(opt["label"])]
+            if block.get("validations", {}).get("required", False) and not selected:
+                st.warning(f"Please select at least one option for '{label}'")
+            inputs[block["id"]] = selected
 
-- **Cohort Name**: {cohort_name}
-- **Manifest**: {manifest}
-- **Billing Group**: {billing_group}
+    return inputs
 
-**Selected Workflow(s)**:
-{chr(10).join(['- ' + w for w in selected_workflows])}
+# Submit GitHub issue
+def submit_issue(title, body, labels, project_ids):
+    jwt_token = create_jwt(app_id, private_key)
+    access_token = get_installation_token(jwt_token, installation_id)
 
-**Additional Information**:
-{additional_info}
-"""
+    headers = {
+        "Authorization": f"token {access_token}",
+        "Accept": "application/vnd.github+json"
+    }
 
-        headers = {
-            "Authorization": f"token {access_token}",
-            "Accept": "application/vnd.github+json"
-        }
-        data = {
-            "title": issue_title,
-            "body": issue_body,
-            "labels": ["harmonization-request"]
-        }
+    data = {
+        "title": title,
+        "body": body,
+        "labels": labels,
+        "project_ids": [int(p.split("/")[-1]) for p in project_ids]
+    }
 
-        st.write("🚀 Sending issue to GitHub...")
-        response = requests.post(
-            f"https://api.github.com/repos/{REPO}/issues",
-            headers=headers,
-            json=data
-        )
+    response = requests.post(
+        f"https://api.github.com/repos/{REPO}/issues",
+        headers=headers,
+        json=data
+    )
 
-        st.write("📬 GitHub Issue Response:", response.status_code)
-        st.write("📬 Response JSON:", response.text)
+    return response
+
+# Main UI
+st.title("BTI Internal Ticket Tracker")
+issue_type = st.selectbox("Select Issue Type", ["analysis", "harmonization"])
+
+template = load_template(issue_type)
+
+if template:
+    inputs = render_form(template)
+
+    if st.button("Submit Issue"):
+        title = template.get("title", "[Ticket]") + f" {inputs.get('analysis_request', '')[:30]}"
+        body = "\n".join([f"### {k}\n{v}" for k, v in inputs.items()])
+        labels = [issue_type + "-request"]
+        project_ids = template.get("projects", [])
+
+        response = submit_issue(title, body, labels, project_ids)
 
         if response.status_code == 201:
-            issue_url = response.json()["html_url"]
+            issue_url = response.json().get("html_url", "")
             st.success("✅ GitHub issue created successfully!")
-            st.markdown(f"[View on GitHub]({issue_url})")
+            st.markdown(f"[View issue on GitHub]({issue_url})")
         else:
             st.error(f"❌ Failed to create issue: {response.status_code}")
             st.json(response.json())
