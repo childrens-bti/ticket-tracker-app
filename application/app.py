@@ -66,6 +66,22 @@ def load_template(issue_type, access_token):
 def render_form(template):
     inputs = {}
 
+    # Add required universal fields
+    st.markdown("### Submitter Information")
+
+    submitter_name = st.text_input("Submitter Name *", help="Your full name")
+    if not submitter_name:
+        st.warning("Submitter Name is required.")
+    inputs["submitter_name"] = submitter_name
+
+    lab = st.text_input("Lab *", help="Lab or team submitting this request")
+    if not lab:
+        st.warning("Lab is required.")
+    inputs["lab"] = lab
+
+    st.markdown("---")  # Divider before ticket-specific form
+
+    # Continue rendering the template-driven fields
     for block in template.get("body", []):
         block_type = block.get("type")
 
@@ -129,7 +145,6 @@ def render_form(template):
 
     return inputs
 
-
 # Submit GitHub issue
 def submit_issue(title, body, labels, project_ids, access_token):
     headers = {
@@ -176,7 +191,15 @@ if template:
 
     if st.button("Submit Issue"):
         title = template.get("title", "[Ticket]") + f" {inputs.get(list(inputs.keys())[0], '')[:30]}"
-        body = "\n".join([f"### {k}\n{v}" for k, v in inputs.items()])
+        body = f"""**Submitter Name**: {inputs.get('submitter_name')}
+**Lab**: {inputs.get('lab')}
+
+""" + "\n".join([
+            f"### {k.replace('_', ' ').title()}\n{v}"
+            for k, v in inputs.items()
+            if k not in ("submitter_name", "lab")
+        ])
+
         labels = [issue_type + "-request"]
         project_ids = template.get("projects", [])
         response = submit_issue(title, body, labels, project_ids, access_token)
@@ -188,4 +211,3 @@ if template:
         else:
             st.error(f"❌ Failed to create issue: {response.status_code}")
             st.json(response.json())
-
