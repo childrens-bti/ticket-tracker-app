@@ -53,7 +53,11 @@ def load_template(issue_type, access_token):
 
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
-        return yaml.safe_load(response.text)
+        try:
+            return yaml.safe_load(response.text)
+        except yaml.YAMLError as e:
+            st.error(f"❌ YAML parsing error in `{issue_type}.yml`:\n\n{str(e)}")
+            return None
     else:
         st.error(f"❌ Failed to load template: {issue_type} ({response.status_code})")
         return None
@@ -106,29 +110,12 @@ def submit_issue(title, body, labels, project_ids, access_token):
 
 # Main UI
 st.title("BTI Bioinformatics Ticket Form")
-issue_type = st.selectbox("Select Issue Type", ["analysis", "harmonization"])
-
-# Authenticate
-jwt_token = create_jwt(app_id, private_key)
-access_token = get_installation_token(jwt_token, installation_id)
-
-template = load_template(issue_type, access_token)
-
-if template:
-    inputs = render_form(template)
-
-    if st.button("Submit Issue"):
-        title = template.get("title", "[Ticket]") + f" {inputs.get('analysis_request', '')[:30]}"
-        body = "\n".join([f"### {k}\n{v}" for k, v in inputs.items()])
-        labels = [issue_type + "-request"]
-        project_ids = template.get("projects", [])
-
-        response = submit_issue(title, body, labels, project_ids, access_token)
-
-        if response.status_code == 201:
-            issue_url = response.json().get("html_url", "")
-            st.success("✅ GitHub issue created successfully!")
-            st.markdown(f"[View issue on GitHub]({issue_url})")
+issue_type = st.selectbox("Select Issue Type", ["access_request", "transfer", "harmonization", "analysis"], format_func=lambda x: {
+    "access_request": "Access Request",
+    "analysis": "Scientific Analysis",
+    "harmonization": "Data Harmonization",
+    "transfer": "Data Download or Data Transfer"
+}.get(x, x.capitalize()))")
         else:
             st.error(f"❌ Failed to create issue: {response.status_code}")
             st.json(response.json())
