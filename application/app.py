@@ -65,24 +65,32 @@ def load_template(issue_type, access_token):
 # Build form based on issue template
 def render_form(template):
     inputs = {}
-    st.markdown(template["body"][0]["attributes"]["value"])
 
-    for block in template["body"]:
-        if block["type"] == "textarea":
-            label = block["attributes"]["label"]
+    for block in template.get("body", []):
+        block_type = block.get("type")
+
+        if block_type == "markdown":
+            st.markdown(block.get("attributes", {}).get("value", ""))
+
+        elif block_type == "textarea":
+            label = block.get("attributes", {}).get("label", "Unnamed Field")
+            placeholder = block.get("attributes", {}).get("placeholder", "")
             required = block.get("validations", {}).get("required", False)
-            value = st.text_area(label, placeholder=block["attributes"].get("placeholder", ""))
+            value = st.text_area(label, placeholder=placeholder)
             if required and not value:
                 st.warning(f"'{label}' is required.")
-            inputs[block["id"]] = value
+            inputs[block.get("id", label)] = value
 
-        elif block["type"] == "checkboxes":
-            label = block["attributes"]["label"]
-            options = block["attributes"].get("options", [])
+        elif block_type == "checkboxes":
+            label = block.get("attributes", {}).get("label", "Unnamed Options")
+            options = block.get("attributes", {}).get("options", [])
             selected = [opt["label"] for opt in options if st.checkbox(opt["label"])]
             if block.get("validations", {}).get("required", False) and not selected:
                 st.warning(f"Please select at least one option for '{label}'")
-            inputs[block["id"]] = selected
+            inputs[block.get("id", label)] = selected
+
+        else:
+            st.info(f"ℹ️ Unsupported field type '{block_type}' will be skipped.")
 
     return inputs
 
@@ -144,4 +152,4 @@ if template:
         else:
             st.error(f"❌ Failed to create issue: {response.status_code}")
             st.json(response.json())
-        
+
