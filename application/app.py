@@ -110,12 +110,16 @@ def submit_issue(title, body, labels, project_ids, access_token):
 
 # Main UI
 st.title("BTI Bioinformatics Ticket Form")
-issue_type = st.selectbox("Select Issue Type", ["access_request", "transfer", "harmonization", "analysis"], format_func=lambda x: {
-    "access_request": "Access Request",
-    "analysis": "Scientific Analysis",
-    "harmonization": "Data Harmonization",
-    "transfer": "Data Download or Data Transfer"
-}.get(x, x.capitalize()))")
+issue_type = st.selectbox(
+    "Select Issue Type",
+    ["access_request", "transfer", "harmonization", "analysis"],
+    format_func=lambda x: {
+        "access_request": "Access Request",
+        "analysis": "Scientific Analysis",
+        "harmonization": "Data Harmonization",
+        "transfer": "Data Download or Data Transfer"
+    }.get(x, x.capitalize())
+))")
         else:
             st.error(f"❌ Failed to create issue: {response.status_code}")
             st.json(response.json())
