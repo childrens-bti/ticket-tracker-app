@@ -120,4 +120,32 @@ issue_type = st.selectbox(
         "transfer": "Data Download or Data Transfer"
     }.get(x, x.capitalize())
 )
+
+# Authenticate
+jwt_token = create_jwt(app_id, private_key)
+access_token = get_installation_token(jwt_token, installation_id)
+
+template = load_template(issue_type, access_token)
+
+if template:
+    inputs = render_form(template)
+
+    if st.button("Submit Issue"):
+        title = template.get("title", "[Ticket]") + f" {inputs.get(list(inputs.keys())[0], '')[:30]}"
+        body = "
+".join([f"### {k}
+{v}" for k, v in inputs.items()])
+        labels = [issue_type + "-request"]
+        project_ids = template.get("projects", [])
+
+        response = submit_issue(title, body, labels, project_ids, access_token)
+
+        if response.status_code == 201:
+            issue_url = response.json().get("html_url", "")
+            st.success("✅ GitHub issue created successfully!")
+            st.markdown(f"[View issue on GitHub]({issue_url})")
+        else:
+            st.error(f"❌ Failed to create issue: {response.status_code}")
+            st.json(response.json())
+)
         
