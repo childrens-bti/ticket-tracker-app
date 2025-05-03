@@ -75,36 +75,60 @@ def render_form(template):
         elif block_type == "textarea":
             label = block.get("attributes", {}).get("label", "Unnamed Field")
             placeholder = block.get("attributes", {}).get("placeholder", "")
+            description = block.get("attributes", {}).get("description", "")
             required = block.get("validations", {}).get("required", False)
-            value = st.text_area(label, placeholder=placeholder)
+            display_label = f"{label} *" if required else label
+            if description:
+                st.caption(description)
+            value = st.text_area(display_label, placeholder=placeholder)
             if required and not value:
                 st.warning(f"'{label}' is required.")
             inputs[block.get("id", label)] = value
 
-        elif block_type == "checkboxes":
-            label = block.get("attributes", {}).get("label", "Unnamed Options")
-            options = block.get("attributes", {}).get("options", [])
-            selected = [opt["label"] for opt in options if st.checkbox(opt["label"])]
-            if block.get("validations", {}).get("required", False) and not selected:
-                st.warning(f"Please select at least one option for '{label}'")
-            inputs[block.get("id", label)] = selected
-        elif block_type == "dropdown":
-            label = block.get("attributes", {}).get("label", "Choose an option")
-            options = block.get("attributes", {}).get("options", [])
-            default = block.get("attributes", {}).get("default", 0)
-            if options:
-                choice = st.selectbox(label, options, index=default if default < len(options) else 0)
-                inputs[block.get("id", label)] = choice
         elif block_type == "input":
             label = block.get("attributes", {}).get("label", "Input")
             placeholder = block.get("attributes", {}).get("placeholder", "")
-            value = st.text_input(label, placeholder=placeholder)
+            description = block.get("attributes", {}).get("description", "")
+            required = block.get("validations", {}).get("required", False)
+            display_label = f"{label} *" if required else label
+            if description:
+                st.caption(description)
+            value = st.text_input(display_label, placeholder=placeholder)
+            if required and not value:
+                st.warning(f"'{label}' is required.")
             inputs[block.get("id", label)] = value
-              
+
+        elif block_type == "dropdown":
+            label = block.get("attributes", {}).get("label", "Choose an option")
+            options = block.get("attributes", {}).get("options", [])
+            description = block.get("attributes", {}).get("description", "")
+            required = block.get("validations", {}).get("required", False)
+            display_label = f"{label} *" if required else label
+            if description:
+                st.caption(description)
+            default = block.get("attributes", {}).get("default", 0)
+            if options:
+                choice = st.selectbox(display_label, options, index=default if default < len(options) else 0)
+                inputs[block.get("id", label)] = choice
+
+        elif block_type == "checkboxes":
+            label = block.get("attributes", {}).get("label", "Unnamed Options")
+            options = block.get("attributes", {}).get("options", [])
+            description = block.get("attributes", {}).get("description", "")
+            required = block.get("validations", {}).get("required", False)
+            display_label = f"{label} *" if required else label
+            if description:
+                st.caption(description)
+            selected = [opt["label"] for opt in options if st.checkbox(opt["label"])]
+            if required and not selected:
+                st.warning(f"Please select at least one option for '{label}'")
+            inputs[block.get("id", label)] = selected
+
         else:
             st.info(f"ℹ️ Unsupported field type '{block_type}' will be skipped.")
 
     return inputs
+
 
 # Submit GitHub issue
 def submit_issue(title, body, labels, project_ids, access_token):
