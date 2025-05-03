@@ -208,7 +208,7 @@ if template:
             if k not in ("submitter_name", "lab")
         ])
 
-        labels = [issue_type + "-request"]
+        labels = [issue_type]
         project_ids = template.get("projects", [])
         response = submit_issue(title, body, labels, project_ids, access_token)
 
