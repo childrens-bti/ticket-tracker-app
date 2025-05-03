@@ -79,6 +79,14 @@ def render_form(template):
         st.warning("Lab is required.")
     inputs["lab"] = lab
 
+    # Ticket title  
+    st.markdown("### Ticket Title")
+
+    ticket_title = st.text_input("Ticket Title *", help="Short, descriptive title for your request")
+    if not ticket_title:
+        st.warning("Ticket Title is required.")
+    inputs["ticket_title"] = ticket_title
+
     st.markdown("---")  # Divider before ticket-specific form
 
     # Continue rendering the template-driven fields
@@ -190,7 +198,7 @@ if template:
     inputs = render_form(template)
 
     if st.button("Submit Issue"):
-        title = template.get("title", "[Ticket]") + f" {inputs.get(list(inputs.keys())[0], '')[:30]}"
+        title = template.get("title", "[Ticket]") + f" {inputs.get('ticket_title', '')[:70]}"
         body = f"""**Submitter Name**: {inputs.get('submitter_name')}
 **Lab**: {inputs.get('lab')}
 
