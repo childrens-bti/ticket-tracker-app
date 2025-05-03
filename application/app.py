@@ -95,6 +95,11 @@ def render_form(template):
             if options:
                 choice = st.selectbox(label, options, index=default if default < len(options) else 0)
                 inputs[block.get("id", label)] = choice
+        elif block_type == "input":
+            label = block.get("attributes", {}).get("label", "Input")
+            placeholder = block.get("attributes", {}).get("placeholder", "")
+            value = st.text_input(label, placeholder=placeholder)
+            inputs[block.get("id", label)] = value
               
         else:
             st.info(f"ℹ️ Unsupported field type '{block_type}' will be skipped.")
