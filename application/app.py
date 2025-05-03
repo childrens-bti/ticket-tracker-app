@@ -119,7 +119,5 @@ issue_type = st.selectbox(
         "harmonization": "Data Harmonization",
         "transfer": "Data Download or Data Transfer"
     }.get(x, x.capitalize())
-))")
-        else:
-            st.error(f"❌ Failed to create issue: {response.status_code}")
-            st.json(response.json())
+)
+        
