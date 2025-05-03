@@ -132,12 +132,9 @@ if template:
 
     if st.button("Submit Issue"):
         title = template.get("title", "[Ticket]") + f" {inputs.get(list(inputs.keys())[0], '')[:30]}"
-        body = "
-".join([f"### {k}
-{v}" for k, v in inputs.items()])
+        body = "\n".join([f"### {k}\n{v}" for k, v in inputs.items()])
         labels = [issue_type + "-request"]
         project_ids = template.get("projects", [])
-
         response = submit_issue(title, body, labels, project_ids, access_token)
 
         if response.status_code == 201:
@@ -147,5 +144,4 @@ if template:
         else:
             st.error(f"❌ Failed to create issue: {response.status_code}")
             st.json(response.json())
-)
         
