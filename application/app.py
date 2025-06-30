@@ -164,12 +164,21 @@ st.title("BTI Bioinformatics Ticket Form")
 
 issue_type = st.selectbox(
     "Select Issue Type",
-    ["access_request", "transfer", "harmonization", "analysis"],
+    [
+        "access_request",
+        "transfer",
+        "harmonization",
+        "analysis",
+        "file_manifest",
+        "data_merge",
+    ],
     format_func=lambda x: {
         "access_request": "Access Request",
-        "analysis": "Scientific Analysis",
-        "harmonization": "Data Harmonization",
         "transfer": "Data Download or Data Transfer",
+        "file_manifest": "Create File Manifest for New Data",
+        "harmonization": "Data Harmonization",
+        "data_merge": "Cohort Data Merge (Summarized Matrices)",
+        "analysis": "Scientific Analysis",
     }.get(x, x.capitalize()),
 )
 
