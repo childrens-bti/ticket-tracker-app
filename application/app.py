@@ -23,7 +23,11 @@ private_key = serialization.load_pem_private_key(
 # Create JWT for GitHub App authentication
 def create_jwt(app_id, private_key):
     now = int(time.time())
-    payload = {"iat": now - 60, "exp": now + (10 * 60), "iss": app_id}
+    payload = {
+        "iat": now - 60,
+        "exp": now + (10 * 60),
+        "iss": str(app_id),
+    }
     return jwt.encode(payload, private_key, algorithm="RS256")
 
 
